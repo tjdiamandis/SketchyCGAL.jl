@@ -1,0 +1,13 @@
+name = "SketchyCGAL"
+uuid = "691c26e5-8623-418d-aada-f4cc0512fa0f"
+authors = ["Theo Diamandis"]
+version = "0.1.0"
+
+[compat]
+julia = "1.5"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
