@@ -49,6 +49,7 @@ function scgal_dense(
         βt = β0 * sqrt(t + 1)
         η = 2/(t + 1)
 
+
         # --- Gradient computation ---
         # * Non-allocating *
         cache.A_X .= zt .- b
@@ -58,8 +59,7 @@ function scgal_dense(
         for i in 1:n
             Dt[i,i] = C[i,i] + cache.A_X[i]
         end
-        # * Allocating (testing convergence) *
-        # Dt = C + Diagonal(yt + βt*(diag(Xt) - b))
+
 
         # --- Eigenvector computation ---
         # * Custom Method *
@@ -70,13 +70,9 @@ function scgal_dense(
         # !F[2].converged && error("Eigvec computation did not converge")
         # ξ, vv = partialeigen(F[1])
         # v .= vv[:,1]
-        # * Standard Julia function (dense matrix) *
-        # d, V = eigen(Dt)
-        # ξ = d[1]
-        # v = V[:,1]
 
 
-        # --- Primal update ---
+        # --- "Primal" update ---
         zt .-= η.*zt
         # TODO: use primative (3)
         zt .+= η .* v .* v
@@ -85,20 +81,25 @@ function scgal_dense(
         # --- Sketch update ---
         rank_one_update!(St, Ω, v, η; cache=cache.sketch_update)
 
-        # --- Dual update ---
-        # A!(cache.A_X, Xt)
+
+        # --- Dual update (& primal infeasibility) ---
         cache.dual_update .= zt .- b
-        # cache.dual_update .= diag(Xt) - b
         primal_infeas = norm(cache.dual_update) * 1/scale_X / (1 + norm_b)
         γ = min(β0, 4*α^2*βt*η^2 / primal_infeas^2)
         @. yt += γ*cache.dual_update
 
+
+        # --- compute objective values for output ---
+        # TODO: make this efficient using primative 1
         obj_val = (1-η)*obj_val + η*v'*C*v
         dual_val = dot(b, yt) * 1/scale_X
 
+
+        # --- duality gap ---
         @. cache.dual_update = yt + βt*cache.dual_update
         dual_gap = obj_val + dot(cache.dual_update, cache.A_X) - ξ[1]
 
+        # --- printing ---
         if t == 1 || t % print_iter == 0
             print_iter_func((
                 string(t),
@@ -112,6 +113,13 @@ function scgal_dense(
         t += 1
     end
 
-    return St, Ω, yt, zt
+    # --- Prepare Output ---
+    solve_time = (time_ns() - time_start) / 1e9
+    # Reconstruct Xhat = U*Λ*U'
+    U, Λ = reconstruct(Ω, S)
+
+    # TODO: return a soution object
+    # primal var (U, Λ), dual var, AX
+    return U, Λ, yt, zt
 
 end
