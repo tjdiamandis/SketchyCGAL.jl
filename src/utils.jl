@@ -1,4 +1,4 @@
-# Adapted from 
+# Adapted from
 # https://github.com/ZIB-IOL/FrankWolfe.jl/blob/master/src/fw_algorithms.jl
 function print_header(data)
     @printf(
