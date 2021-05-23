@@ -19,3 +19,6 @@ end
 function cost(G, y)
     return 0.25*(sum(G) - dot(y, G*y))
 end
+
+#
+unzip(a) = map(x->getfield.(a, x), fieldnames(eltype(a)))

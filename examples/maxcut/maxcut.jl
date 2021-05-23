@@ -3,7 +3,6 @@ using JuMP, MosekTools
 
 G = graph_from_file(joinpath(@__DIR__, "data/G1"))
 n = size(G, 1)
-C = -0.25*(Diagonal(G*ones(n)) - G)
 
 function solve_with_jump(C)
     sdp = Model(Mosek.Optimizer)
@@ -18,15 +17,19 @@ end
 
 
 
-α = 1
+## ---------- Problem setup ----------
+# Parameters
 n = size(G, 1)
 d = n
-C = G
+
+# Data
+C = -0.25*(Diagonal(G*ones(n)) - G)
 b = ones(n)
 
-# Scaling variables
-C = copy(C) / norm(C)
-b = copy(b) * 1/n
+# Scaling variables -- so trace is bounded by 1
+scale_C = 1 / norm(C)
+scale_X = 1 / n
+# b .= b .* scale_X
 
 
 # Linear map
@@ -34,14 +37,19 @@ b = copy(b) * 1/n
 function A!(y, X)
     n = size(X, 1)
     for i in 1:n
-        y[i] = X[i,i] / n
+        y[i] = X[i,i]
     end
+    return nothing
 end
 
 # Adjoint
 # A*z = Diagonal(z)
 function A_adj!(S::SparseMatrixCSC, z)
-    S[diagind(S)] .= z ./ size(S, 1)
+    for (i, j, v) ∈ zip(findnz(S)...)
+        S[i,j] = 0.0
+    end
+    S[diagind(S)] .= z
+    return nothing
  end
 
 # primative 1: u -> C*u
@@ -59,5 +67,29 @@ function p3!(z, u)
     z .= u.*u
 end
 
+
+## Solve JuMP
 Xopt = solve_with_jump(C)
-cgal_dense(C, A!, A_adj!, b, α, n, d)
+sum(C .* Xopt)
+
+## Solve CGAL
+@time XT, yT = cgal_dense(
+    Matrix(C), b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
+    max_iters=1_000,
+    print_iter=25
+)
+
+sum(C .* XT * 1/scale_X)
+##
+cgal_dense(
+    Matrix(C), b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
+    max_iters=400,
+    print_iter=25
+)
+
+@time BLAS.ger!(η, v, v, Xt)
+
+@btime begin
+    Xt .-= η.*Xt
+end
+@time (@. Xt - η*Xt)
