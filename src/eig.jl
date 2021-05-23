@@ -34,9 +34,22 @@ function approx_min_evec(M; n::Int, q::Int, cache=nothing, tol=1e-12)
     i -= 1
 
     @views T = SymTridiagonal(w[1:i], p[1:i-1])
+    # try
+    #     u = eigvecs(T)[:,1]
+    #     v = V[:,1:i]*u
+    #     mul!(tmp, M, v)
+    #     ξ = dot(v, tmp)
+    #     return ξ, v
+    # catch
+    #     @show T
+    #     error("LAPACK error")
+    # end
+
+    # LAPACK ZLARRV for tridiagonal eigenvalues
     u = eigvecs(T)[:,1]
     v = V[:,1:i]*u
     mul!(tmp, M, v)
     ξ = dot(v, tmp)
     return ξ, v
+
 end
