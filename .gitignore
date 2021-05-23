@@ -3,3 +3,4 @@
 *.jl.mem
 .DS_Store
 /dev/
+/examples/maxcut/data/G*
