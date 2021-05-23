@@ -1,119 +1,24 @@
-function cgal(
-    C,
-    A!,
-    A_adj!,
-    b,
-    α,
-    n,
-    d,
-    max_iters=10_000,
-    tol = 1e-5
-)
-
-    # Scaling variables
-    C ./= norm(C)
-
-
-    t = 1
-    β0 = 1
-    K = Inf
-    dual_gap = Inf
-
-    Xt = spzeros(n, n)
-    yt = zeros(d)
-
-    cache = (
-        A_X = zeros(d),
-        tmp_gap = zeros(d)
-    )
-    Dt = similar(Xt)
-
-    while t <= max_iters && dual_gap >= max(tol, eps())
-        βt = β0 * sqrt(t + 1)
-        η = 2/(t + 1)
-
-        A!(cache.A_X, X)
-        cache.A_X .-= b
-        cache.A_X .*= βt
-        cache.A_X .+= yt
-        A_adj!(Dt, cache.A_X)
-
-        Dt .+= C
-        ξ, v = eigs(Dt, nev=1, ncv=10, which=:LM)
-
-        @. Xt = (1-η)*Xt + η*α*v*v'
-
-        A!(cache.A_X, X)
-        γ = min(β0, 4*α^2*βt*η^2 / norm(cache.A_X))
-        @. yt += γ*(cache.A_X - b)
-        obj_val = sum(C.*Xt)
-
-        @. cache.tmp_gap = yt + βt*(cache.A_X - b)
-        dual_gap = obj_val + dot(cache.tmp_gap, cache.A_X) - ξ[1]
-
-        t % 10 == 0 && @info "Iter $t. Duality gap: $dual_gap"
-        t += 1
-    end
-
-    return Xt, yt
-
-end
-
-
+# No primatives
 function cgal_dense(
-    C,
-    A!,
-    A_adj!,
-    b,
-    α,
-    n,
-    d,
-    max_iters=1_000,
-    tol = 1e-5
+        C_input,
+        b_input,
+        A!,
+        A_adj!;
+        n,
+        d,
+        scale_X = 1,
+        scale_C = 1,
+        max_iters = 1_000,
+        tol = 1e-10,
+        print_iter = 10,
 )
 
-    print_iter = 10
-    function print_header(data)
-        @printf(
-            "\n─────────────────────────────────────────────────────────────────────────────────────────────────\n"
-        )
-        @printf(
-            "%13s %14s %14s %14s %14s %14s\n",
-            data[1],
-            data[2],
-            data[3],
-            data[4],
-            data[5],
-            data[6]
-        )
-        @printf(
-            "─────────────────────────────────────────────────────────────────────────────────────────────────\n"
-        )
-    end
-
-    function print_footer()
-        @printf(
-            "─────────────────────────────────────────────────────────────────────────────────────────────────\n\n"
-        )
-    end
-
-    function print_iter_func(data)
-        @printf(
-            "%13s %14e %14e %14e %14e %13.1f\n",
-            data[1],
-            Float64(data[2]),
-            Float64(data[3]),
-            Float64(data[4]),
-            Float64(data[5]),
-            data[6]
-        )
-    end
-
-    headers = ["Iteration", "Primal", "Dual", "Dual Gap", "Infeas", "Time"]
-    print_header(headers)
+    # Copy variables
+    C = copy(C_input) .* scale_C
+    b = copy(b_input) .* scale_X
+    norm_b = norm(b_input)
 
     α = 1
-
     t = 1
     β0 = 1
     K = Inf
@@ -126,33 +31,65 @@ function cgal_dense(
         A_X = zeros(d),
         dual_update = zeros(d)
     )
-    Dt = similar(Xt)
+    Dt = copy(C)
+    v = zeros(n)
 
+    # Keep track of things (credit: https://github.com/ZIB-IOL/FrankWolfe.jl)
+    headers = ["Iteration", "Primal", "Dual", "Dual Gap", "Infeas", "Time"]
+    print_header(headers)
     time_start = time_ns()
-    while t <= max_iters && dual_gap >= max(tol, eps())
+    while t <= max_iters #&& dual_gap >= max(tol, eps())
+        # --- Parameter updates (from Yurtsever et al Alg 6.1) ---
         βt = β0 * sqrt(t + 1)
         η = 2/(t + 1)
 
+        # --- Gradient computation ---
+        # * Non-allocating *
         A!(cache.A_X, Xt)
         cache.A_X .-= b
         cache.A_X .*= βt
         cache.A_X .+= yt
+        # C entries are already in Dt -- just update diagonal
+        for i in 1:n
+            Dt[i,i] = C[i,i] + cache.A_X[i]
+        end
+        # * Allocating (testing convergence) *
+        # Dt = C + Diagonal(yt + βt*(diag(Xt) - b))
 
-        Dt .= Diagonal(cache.A_X) .+ C
-        # ξ, v = eigen(Dt)
+        # --- Eigenvector computation ---
+        # * Custom Method *
         q = Int(ceil(10 * t^0.25 * log(n)))
         ξ, v = approx_min_evec(Dt, n=n, q=q)
-        # F = partialschur(-Dt, nev=1, which=LM(), tol=sqrt(n)*eps())
-        # ξ, v = partialeigen(F[1])
-        # ξ = -ξ
-        @. Xt = (1-η)*Xt + η*α*v*v'
+        # * ArnoldiMethod.jl (more stable than Lanzcos) *
+        # F = partialschur(Dt, nev=1, which=SR(), tol=sqrt(n)*eps())
+        # !F[2].converged && error("Eigvec computation did not converge")
+        # ξ, vv = partialeigen(F[1])
+        # v .= vv[:,1]
+        # * Standard Julia function (dense matrix) *
+        # d, V = eigen(Dt)
+        # ξ = d[1]
+        # v = V[:,1]
 
+
+        # --- Primal update ---
+        # This allocates for some reason...
+        Xt .= Xt .- η.*Xt
+        BLAS.ger!(η, v, v, Xt)
+        # So does this...
+        # for i in 1:n, j in 1:n
+            # Xt[i,j] = (1-η) * Xt[i,j] + η*v[i]*v[j]
+        # end
+        # Xt .= (1-η).*Xt .+ η.*α.*(v*v')
+
+        # --- Dual update ---
         A!(cache.A_X, Xt)
         cache.dual_update .= cache.A_X .- b
-        primal_infeas = norm(cache.dual_update)^2
-        γ = min(β0, 4*α^2*βt*η^2 / primal_infeas)
+        # cache.dual_update .= diag(Xt) - b
+        primal_infeas = norm(cache.dual_update) * 1/scale_X / (1 + norm_b)
+        γ = min(β0, 4*α^2*βt*η^2 / primal_infeas^2)
         @. yt += γ*cache.dual_update
         obj_val = sum(C.*Xt)
+        dual_val = dot(b, yt) * 1/scale_X
 
         @. cache.dual_update = yt + βt*cache.dual_update
         dual_gap = obj_val + dot(cache.dual_update, cache.A_X) - ξ[1]
@@ -160,8 +97,8 @@ function cgal_dense(
         if t == 1 || t % print_iter == 0
             print_iter_func((
                 string(t),
-                obj_val,
-                dot(b, yt),
+                obj_val * 1/scale_C * 1/scale_X,
+                dual_val,
                 dual_gap,
                 primal_infeas,
                 (time_ns() - time_start) / 1e9
@@ -173,3 +110,91 @@ function cgal_dense(
     return Xt, yt
 
 end
+
+
+
+# function cgal_dense_maxcut(
+#     C_input,
+#     b_input,
+#     n,
+#     d,
+#     scale_X = 1,
+#     scale_C = 1
+#     max_iters = 1_000,
+#     tol = 1e-10
+# )
+#
+#     print_iter = 10
+#     headers = ["Iteration", "Primal", "Dual", "Dual Gap", "Infeas", "Time"]
+#     print_header(headers)
+#
+#     α = n
+#     t = 1
+#     β0 = 1
+#     K = Inf
+#     dual_gap = Inf
+#
+#     Xt = zeros(n, n)
+#     yt = zeros(d)
+#
+#     cache = (
+#         A_X = zeros(d),
+#         dual_update = zeros(d)
+#     )
+#     Dt = similar(Xt)
+#
+#     time_start = time_ns()
+#     while t <= max_iters #&& dual_gap >= max(tol, eps())
+#         # --- Parameter updates (from Yurtsever et al Alg 6.1) ---
+#         βt = β0 * sqrt(t + 1)
+#         η = 0.5 #2/(t + 1)
+#
+#         # --- Gradient computation ---
+#         # A!(cache.A_X, Xt)
+#         # cache.A_X .-= b
+#         # cache.A_X .*= βt
+#         # cache.A_X .+= yt
+#         # Dt .= Diagonal(cache.A_X) .+ C
+#         Dt .= C + Diagonal(yt + βt*(Xt[diagind(Xt)] - b))
+#
+#         # --- Eigenvector computation ---
+#         # q = Int(ceil(10 * t^0.25 * log(n)))
+#         # ξ, v = approx_min_evec(Dt, n=n, q=q)
+#         # Uses ArnoldiMethod.jl (more stable than Lanzcos)
+#         F = partialschur(Dt, nev=1, which=SR(), tol=sqrt(n)*eps())
+#         ξ, v = partialeigen(F[1])
+#
+#         # --- Primal update ---
+#         for i in 1:n, j in 1:n
+#             Xt[i,j] = (1-η) * Xt[i,j] + η*α*v[i]*v[j]
+#         end
+#         # Xt .= (1-η).*Xt .+ η.*α.*(v*v')
+#
+#         # --- Dual update ---
+#         # A!(cache.A_X, Xt)
+#         # cache.dual_update .= cache.A_X .- b
+#         cache.dual_update .= Xt[diagind(Xt)] .- b
+#         primal_infeas = norm(cache.dual_update)^2
+#         γ = min(β0, 4*α^2*βt*η^2 / primal_infeas)
+#         @. yt += γ*cache.dual_update
+#         obj_val = sum(C.*Xt)
+#
+#         @. cache.dual_update = yt + βt*cache.dual_update
+#         dual_gap = obj_val + dot(cache.dual_update, cache.A_X) - ξ[1]
+#
+#         if t == 1 || t % print_iter == 0
+#             print_iter_func((
+#                 string(t),
+#                 obj_val,
+#                 dot(b, yt),
+#                 dual_gap,
+#                 primal_infeas,
+#                 (time_ns() - time_start) / 1e9
+#             ))
+#         end
+#         t += 1
+#     end
+#
+#     return Xt, yt
+#
+# end
