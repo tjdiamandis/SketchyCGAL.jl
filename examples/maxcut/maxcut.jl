@@ -1,5 +1,8 @@
-include("utils.jl")
 using JuMP, MosekTools
+using SketchyCGAL
+using LinearAlgebra, SparseArrays
+
+include("utils.jl")
 
 G = graph_from_file(joinpath(@__DIR__, "data/G1"))
 n = size(G, 1)
@@ -30,7 +33,7 @@ b = ones(n)
 scale_C = 1 / norm(C)
 scale_X = 1 / n
 # b .= b .* scale_X
-
+const C_const = C * scale_C
 
 # Linear map
 # AX = diag(X)
@@ -53,17 +56,17 @@ function A_adj!(S::SparseMatrixCSC, z)
  end
 
 # primative 1: u -> C*u
-function p1!(v, C, u)
-    mul!(v, C, u)
+function C_u!(v, u)
+    mul!(v, C_const, u)
 end
 
 #primative 2: (u, z) -> (A*z)u
-function p2!(v, u, z)
+function Aadj_zu!(v, u, z)
     v .= u .* z
 end
 
 #primative 3: u -> A(uu^T)
-function p3!(z, u)
+function A_uu!(z, u)
     z .= u.*u
 end
 
@@ -73,13 +76,36 @@ Xopt = solve_with_jump(C)
 sum(C .* Xopt)
 
 ## Solve CGAL
-@time XT, yT = cgal_dense(
-    Matrix(C), b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
-    max_iters=1_000,
+@time XT, yT = SketchyCGAL.cgal_dense(
+    C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
+    max_iters=200,
     print_iter=25
 )
 
 sum(C .* XT * 1/scale_X)
+
+##
+@time UT, ΛT, ST, Ω, yT, zT = scgal_full(
+    C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
+    max_iters=1_000,
+    print_iter=25,
+    R=20
+)
+
+Xhat = UT*ΛT*UT'
+# Xhat = S*pinv(Ω'*S)*S'
+sum(C .* Xhat * 1/scale_X)
+
+## primatives
+@time XT, yT = cgal_dense(
+    C_u!, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
+    max_iters=100,
+    print_iter=25
+)
+
+sum(C .* XT * 1/scale_X)
+
+
 ##
 cgal_dense(
     Matrix(C), b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
