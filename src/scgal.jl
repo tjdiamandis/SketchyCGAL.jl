@@ -15,6 +15,8 @@ function scgal_full(
         logging=false,              # stores obj_val, dual_gap, infeas
         logging_primal=false,       # computes Xhat & stores true obj, infeas
         rseed=0,
+        ηt::Function=t->2.0/(t + 1.0),
+        δt::Function=t->1.0,
 )
     Random.seed!(0)
 
@@ -79,7 +81,8 @@ function scgal_full(
     while t <= max_iters #&& dual_gap >= max(tol, eps())
         # --- Parameter updates (from Yurtsever et al Alg 6.1) ---
         βt = β0 * sqrt(t + 1)
-        η = 2/(t + 1)
+        η = ηt(t)
+        δ = δt(t)
 
 
         # --- Gradient computation ---
@@ -88,8 +91,9 @@ function scgal_full(
         cache.A_X .*= βt
         cache.A_X .+= yt
         # C entries are already in Dt -- just update diagonal
+        # NOTE: This only works for MAXCUT as implemented 
         for i in 1:n
-            Dt[i,i] = C[i,i] + cache.A_X[i]
+            Dt[i,i] = (1.0 - δ)*Dt[i,i] + δ*(C[i,i] + cache.A_X[i])
         end
 
 
@@ -120,7 +124,7 @@ function scgal_full(
         cache.dual_update .= zt .- b
         # eq (6.4)
         primal_infeas = norm(cache.dual_update)
-        γ = min(β0, βt*η^2 / primal_infeas^2)
+        γ = min(β0, 4β0*sqrt(t+1)/(t+1)^2 / primal_infeas^2)
         primal_infeas /= (scale_X * (1 + norm_b))
         @. yt += γ*cache.dual_update
 
