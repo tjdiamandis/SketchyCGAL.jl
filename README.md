@@ -7,6 +7,8 @@
 
 Implementation of [`SketchyCGAL`](https://arxiv.org/abs/1912.02949) with weighted average gradients and tests on the MAXCUT problem.
 
+**Currently a work-in-progress**
+
 
 ## References
 - Yurtsever, A., Tropp, J. A., Fercoq, O., Udell, M., Cevher, V.,
