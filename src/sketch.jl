@@ -43,3 +43,21 @@ end
 function construct_Xhat(soln::SCGALResults)
     return soln.UT*soln.ΛT*soln.UT'
 end
+
+
+# Avoids overhead of constructing Xhat fully
+function compute_objective(C, U, Λ; cache=nothing)
+    n = size(C, 1)
+    if isnothing(cache)
+        cache = C*U
+    else
+        mul!(cache, C, U)
+    end
+
+    obj_val = 0
+    @views for i in 1:size(Λ, 1)
+        obj_val += Λ.diag[i] * dot(U[:,i], cache[:,i])
+    end
+
+    return obj_val
+end
