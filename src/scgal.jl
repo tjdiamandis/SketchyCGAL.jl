@@ -91,7 +91,7 @@ function scgal_full(
         cache.A_X .*= βt
         cache.A_X .+= yt
         # C entries are already in Dt -- just update diagonal
-        # NOTE: This only works for MAXCUT as implemented 
+        # NOTE: This only works for MAXCUT as implemented
         for i in 1:n
             Dt[i,i] = (1.0 - δ)*Dt[i,i] + δ*(C[i,i] + cache.A_X[i])
         end
@@ -167,12 +167,14 @@ function scgal_full(
 
         t += 1
     end
-    print_footer()
 
     # --- Prepare Output ---
     solve_time = (time_ns() - time_start) / 1e9
+    @printf("\nSolved in %6.3fs\n", solve_time)
     # Reconstruct Xhat = U*Λ*U'
     U, Λ = reconstruct(Ω, St, correction=true)
+
+    print_footer()
 
     # Constructs log & returns solution object
     if logging && logging_primal
