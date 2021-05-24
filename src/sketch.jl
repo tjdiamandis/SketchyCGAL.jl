@@ -1,4 +1,5 @@
-function init_sketch(n, R)
+function init_sketch(n, R; rseed=0)
+    Random.seed!(rseed)
     return randn(n, R), zeros(n, R)
 end
 
@@ -25,7 +26,16 @@ function reconstruct(Ω, S; correction=false)
     Sσ = S + σ .* Ω
     M = Ω'*S
     M .= 0.5 .* (M .+ M')
-    F = cholesky(M)
+    F = nothing
+
+    # Some error handling -- PosDefException on cholesky for first few iters
+    # TODO: figure out why this occurs
+    try
+        F = cholesky(M)
+    catch e
+        !isa(e, PosDefException) && error("Sketch reconstruction error")
+        F = lu(M)
+    end
     U, Σ, _ = svd(Sσ / F.U)
     Λ = Diagonal(max.(0, Σ.^2 .- σ))
 
