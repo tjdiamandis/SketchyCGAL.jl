@@ -34,7 +34,8 @@ function reconstruct(Ω, S; correction=false)
         F = cholesky(M)
     catch e
         !isa(e, PosDefException) && error("Sketch reconstruction error")
-        F = lu(M)
+        M[diagind(M)] .+= 1
+        F = cholesky(M)
     end
     U, Σ, _ = svd(Sσ / F.U)
     Λ = Diagonal(max.(0, Σ.^2 .- σ))
