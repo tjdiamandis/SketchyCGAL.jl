@@ -12,21 +12,33 @@ function scgal_full(
         max_iters = 1_000,
         tol = 1e-10,
         print_iter = 10,
+        logging=false,
+        rseed=0
 )
+    Random.seed!(0)
 
-    # Copy variables
+    # --- copy variables & scale---
     C = copy(C_input) .* scale_C
     b = copy(b_input) .* scale_X
     norm_b = norm(b_input)
 
-    α = 1
+    # --- parameters ---
+    # Note: assume scaling factors are such that α = 1
+    # α = 1
     t = 1
     β0 = 1
     K = Inf
-    dual_gap = Inf
 
-
-    obj_val = 0
+    if logging
+        dual_gap_log = zeros(max_iters)
+        obj_val_log = zeros(max_iters)
+        primal_infeas_log = zeros(max_iters)
+        time_sec_log = zeros(max_iters)
+    else
+        dual_gap = Inf
+        primal_infeas = Inf
+        obj_val = 0
+    end
 
     Ω, St = init_sketch(n, R)
     yt = zeros(d)
@@ -91,7 +103,7 @@ function scgal_full(
         cache.dual_update .= zt .- b
         # eq (6.4)
         primal_infeas = norm(cache.dual_update)
-        γ = min(β0, α^2*βt*η^2 / primal_infeas^2)
+        γ = min(β0, βt*η^2 / primal_infeas^2)
         primal_infeas /= (scale_X * (1 + norm_b))
         @. yt += γ*cache.dual_update
 
@@ -106,6 +118,16 @@ function scgal_full(
         dual_gap = obj_val + dot(cache.dual_update, cache.A_X) - ξ[1]
 
 
+        # --- logging ---
+        time_sec = (time_ns() - time_start) / 1e9
+        if logging
+            obj_val_log[t] = obj_val
+            dual_gap_log[t] = dual_gap
+            primal_infeas_log[t] = primal_infeas
+            time_sec_log[t] = time_sec
+        end
+
+
         # --- printing ---
         if t == 1 || t % print_iter == 0
             print_iter_func((
@@ -113,7 +135,7 @@ function scgal_full(
                 obj_val * 1/scale_C * 1/scale_X,
                 dual_gap,
                 primal_infeas,
-                (time_ns() - time_start) / 1e9
+                time_sec
             ))
         end
         t += 1
@@ -123,19 +145,22 @@ function scgal_full(
     # --- Prepare Output ---
     solve_time = (time_ns() - time_start) / 1e9
     # Reconstruct Xhat = U*Λ*U'
-    U, Λ = reconstruct(Ω, St)
-
-    correction_factor = (1.0 - tr(Λ))/R
-    # Λ.diag .= Λ.diag .+ correction_factor
+    U, Λ = reconstruct(Ω, St, correction=true)
 
     # TODO: return a soution object
     # primal var (U, Λ), dual var, AX
-    return U, Λ, St, Ω, yt, zt
+    scgal_log = logging ? SCGALLog() : nothing
+    return SCGALSolution(U, Λ, St, Ω, yt, zt, scgal_log)
 
 end
 
 
 
+
+# TODO: better to add this as an option for the above
+# ------------------------------------------------------------------------
+# ------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 # Uses primatives defined in (2.4) in the paper
 function scgal(
         C_u!,           # u     -> C*u
@@ -225,7 +250,7 @@ function scgal(
         # --- Dual update (& primal infeasibility) ---
         cache.dual_update .= zt .- b
         primal_infeas = norm(cache.dual_update) * 1/scale_X / (1 + norm_b)
-        γ = min(β0, 4*α^2*βt*η^2 / primal_infeas^2)
+        γ = min(β0, βt*η^2 / primal_infeas^2)
         @. yt += γ*cache.dual_update
 
 
