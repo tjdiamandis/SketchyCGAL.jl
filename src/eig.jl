@@ -105,10 +105,9 @@ function approx_min_evec!(v, M::AbstractMatrix; n::Int, q::Int, cache=nothing, t
     end
     i -= 1
 
-    @views T = SymTridiagonal(cache.w[1:i], cache.p[1:i-1])
-    # LAPACK ZLARRV for tridiagonal eigenvalues
-    # TODO: make this line unallocating
-    cache.tmp1[1:i] .= eigvecs(T)[:,1]
+    # LAPACK call for SymTridiagonal eigenvectors
+    # https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.LAPACK.stegr!
+    @views cache.tmp1[1:i] .= LAPACK.stegr!('V', 'I', cache.w[1:i], cache.p[1:i-1], 0.0, 0.0, 1, 1)[2][:,1]
     @views mul!(v, cache.V[:,1:i], cache.tmp1[1:i])
     mul!(cache.tmp1, M, v)
     ξ = dot(v, cache.tmp1)
@@ -152,10 +151,9 @@ function approx_min_evec!(v, M!; n::Int, q::Int, cache=nothing, tol=1e-12)
     end
     i -= 1
 
-    @views T = SymTridiagonal(cache.w[1:i], cache.p[1:i-1])
-    # LAPACK ZLARRV for tridiagonal eigenvalues
-    # TODO: make this line unallocating
-    cache.tmp1[1:i] .= eigvecs(T)[:,1]
+    # LAPACK call for SymTridiagonal eigenvectors
+    # https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.LAPACK.stegr!
+    @views cache.tmp1[1:i] .= LAPACK.stegr!('V', 'I', cache.w[1:i], cache.p[1:i-1], 0.0, 0.0, 1, 1)[2][:,1]
     @views mul!(v, cache.V[:,1:i], cache.tmp1[1:i])
     M!(cache.tmp1, v)
     ξ = dot(v, cache.tmp1)
@@ -199,10 +197,9 @@ function approx_min_evec!(v, C_u!, Aadj_zu!, AX; n::Int, q::Int, cache=nothing, 
     end
     i -= 1
 
-    @views T = SymTridiagonal(cache.w[1:i], cache.p[1:i-1])
-    # LAPACK ZLARRV for tridiagonal eigenvalues
-    # TODO: make this line unallocating
-    cache.tmp1[1:i] .= eigvecs(T)[:,1]
+    # LAPACK call for SymTridiagonal eigenvectors
+    # https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/#LinearAlgebra.LAPACK.stegr!
+    @views cache.tmp1[1:i] .= LAPACK.stegr!('V', 'I', cache.w[1:i], cache.p[1:i-1], 0.0, 0.0, 1, 1)[2][:,1]
     @views mul!(v, cache.V[:,1:i], cache.tmp1[1:i])
 
     C_u!(cache.tmp1, v)
