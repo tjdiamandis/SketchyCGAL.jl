@@ -76,7 +76,7 @@ Xopt = solve_with_jump(C)
 sum(C .* Xopt)
 
 ## Solve CGAL
-@time XT, yT = SketchyCGAL.cgal_dense(
+@time XT, yT = SketchyCGAL.cgal_full(
     C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
     max_iters=200,
     print_iter=25
@@ -92,9 +92,15 @@ sum(C .* XT * 1/scale_X)
     R=20
 )
 
-Xhat = UT*ΛT*UT'
+Xhat = UT*ΛT*UT' * scale_X
 # Xhat = S*pinv(Ω'*S)*S'
-sum(C .* Xhat * 1/scale_X)
+sum(C .* Xhat)
+
+
+##
+norm(diag(Xhat) - b) / (1 + norm(b))
+norm(zT*1/scale_X - b) / (1 + norm(b))
+
 
 ## primatives
 @time XT, yT = cgal_dense(

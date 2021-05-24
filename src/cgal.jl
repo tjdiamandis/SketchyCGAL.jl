@@ -1,5 +1,5 @@
 # No primatives
-function cgal_dense(
+function cgal_full(
         C_input,
         b_input,
         A!,
@@ -35,7 +35,7 @@ function cgal_dense(
     v = zeros(n)
 
     # Keep track of things (credit: https://github.com/ZIB-IOL/FrankWolfe.jl)
-    headers = ["Iteration", "Primal", "Dual", "Dual Gap", "Infeas", "Time"]
+    headers = ["Iteration", "Primal", "Dual Gap", "Infeas", "Time"]
     print_header(headers)
     time_start = time_ns()
     while t <= max_iters #&& dual_gap >= max(tol, eps())
@@ -89,7 +89,6 @@ function cgal_dense(
         γ = min(β0, 4*α^2*βt*η^2 / primal_infeas^2)
         @. yt += γ*cache.dual_update
         obj_val = sum(C.*Xt)
-        dual_val = dot(b, yt) * 1/scale_X
 
         @. cache.dual_update = yt + βt*cache.dual_update
         dual_gap = obj_val + dot(cache.dual_update, cache.A_X) - ξ[1]
@@ -98,7 +97,6 @@ function cgal_dense(
             print_iter_func((
                 string(t),
                 obj_val * 1/scale_C * 1/scale_X,
-                dual_val,
                 dual_gap,
                 primal_infeas,
                 (time_ns() - time_start) / 1e9
@@ -106,6 +104,7 @@ function cgal_dense(
         end
         t += 1
     end
+    print_footer()
 
     return Xt, yt
 

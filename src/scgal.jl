@@ -44,7 +44,7 @@ function scgal_full(
     v = zeros(n)
 
     # Keep track of things (credit: https://github.com/ZIB-IOL/FrankWolfe.jl)
-    headers = ["Iteration", "Primal", "Dual", "Dual Gap", "Infeas", "Time"]
+    headers = ["Iteration", "Primal", "Dual Gap", "Infeas", "Time"]
     print_header(headers)
     time_start = time_ns()
     while t <= max_iters #&& dual_gap >= max(tol, eps())
@@ -99,7 +99,6 @@ function scgal_full(
         # --- compute objective values for output ---
         mul!(cache.tmp, C, v)
         obj_val = (1-η)*obj_val + η*dot(v, cache.tmp)
-        dual_val = dot(b, yt) * 1/scale_X
 
 
         # --- duality gap ---
@@ -112,7 +111,6 @@ function scgal_full(
             print_iter_func((
                 string(t),
                 obj_val * 1/scale_C * 1/scale_X,
-                dual_val,
                 dual_gap,
                 primal_infeas,
                 (time_ns() - time_start) / 1e9
@@ -120,6 +118,7 @@ function scgal_full(
         end
         t += 1
     end
+    print_footer()
 
     # --- Prepare Output ---
     solve_time = (time_ns() - time_start) / 1e9

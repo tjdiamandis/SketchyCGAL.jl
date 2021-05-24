@@ -5,13 +5,12 @@ function print_header(data)
         "\n─────────────────────────────────────────────────────────────────────────────────────────────────\n"
     )
     @printf(
-        "%13s %14s %14s %14s %14s %14s\n",
+        "%13s %14s %14s %14s %14s\n",
         data[1],
         data[2],
         data[3],
         data[4],
-        data[5],
-        data[6]
+        data[5]
     )
     @printf(
         "─────────────────────────────────────────────────────────────────────────────────────────────────\n"
@@ -26,12 +25,11 @@ end
 
 function print_iter_func(data)
     @printf(
-        "%13s %14e %14e %14e %14e %13.1f\n",
+        "%13s %14e %14e %14e %13.3f\n",
         data[1],
         Float64(data[2]),
         Float64(data[3]),
         Float64(data[4]),
-        Float64(data[5]),
-        data[6]
+        data[5]
     )
 end
