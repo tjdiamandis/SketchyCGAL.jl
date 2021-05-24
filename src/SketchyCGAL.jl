@@ -15,5 +15,6 @@ include("cgal.jl")
 include("scgal.jl")
 
 export scgal_full
+export construct_Xhat
 
 end

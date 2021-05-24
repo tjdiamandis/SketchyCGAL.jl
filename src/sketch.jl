@@ -18,7 +18,7 @@ end
 
 # Numerical stable version of eq (5.3)
 #  X̂ = S*pinv(Ω'*S)*S' = U*Λ*U'
-function reconstruct(Ω, S)
+function reconstruct(Ω, S; correction=false)
     n = size(S, 1)
     σ = sqrt(n)*eps()*norm(S)
     Sσ = S + σ .* Ω
@@ -27,5 +27,19 @@ function reconstruct(Ω, S)
     F = cholesky(M)
     U, Σ, _ = svd(Sσ / F.U)
     Λ = Diagonal(max.(0, Σ.^2 .- σ))
+
+    # Implements trace correction (Remark 6.1)
+    # Note: correction doubles the error at worse; usually works better in practice
+    if correction
+        R = size(S, 2)
+        correction_factor = (1.0 - tr(Λ))/R
+        Λ.diag .= Λ.diag .+ correction_factor
+    end
+
     return U, Λ
+end
+
+
+function construct_Xhat(soln::SCGALResults)
+    return soln.UT*soln.ΛT*soln.UT'
 end
