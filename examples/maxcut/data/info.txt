@@ -1,3 +1,7 @@
 Gset data can be found at http://web.stanford.edu/~yyye/yyye/Gset/
 Targets here https://medium.com/toshiba-sbm/benchmarking-the-max-cut-problem-on-the-simulated-bifurcation-machine-e26e1127c0b0
 - taken from previous research
+
+
+Another dataset of interest is DIMACS10, but we did not use it in this project
+https://www.cise.ufl.edu/research/sparse/matrices/DIMACS10/index.html
