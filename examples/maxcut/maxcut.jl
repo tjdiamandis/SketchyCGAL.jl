@@ -26,6 +26,8 @@ n = size(G, 1)
 d = n
 
 # Data
+# objective = min -1/4( ∑_ij w_ij*(1-yi*yj) ) = -1/4⟨diag(∑ᵢ w_ij) - W), Y⟩
+# note that this reformulation uses the fact that Tr(Y) = 1
 C = -0.25*(Diagonal(G*ones(n)) - G)
 b = ones(n)
 
@@ -85,17 +87,32 @@ sum(C .* Xopt)
 sum(C .* XT * 1/scale_X)
 
 ##
-@time UT, ΛT, ST, Ω, yT, zT = scgal_full(
+R = 20
+ηt(t) = 2.0/(t + 1.0)
+δt(t) = 0.5
+@time soln = scgal_full(
     C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
     max_iters=1_000,
-    print_iter=25,
-    R=20
+    print_iter=100,
+    R=R,
+    # logging=true,
+    # logging_primal=true,
+    ηt=ηt,
+    δt=δt
 )
 
-Xhat = UT*ΛT*UT' * scale_X
+Xhat = SketchyCGAL.construct_Xhat(soln)
 # Xhat = S*pinv(Ω'*S)*S'
-sum(C .* Xhat)
+sum(C .* Xhat) * 1/scale_X
 
+cache = zeros(n, R)
+@time SketchyCGAL.compute_objective(C, soln.UT, soln.ΛT, cache=cache)# * 1/scale_X
+
+@time SketchyCGAL.compute_primal_infeas_mc(soln.UT, soln.ΛT, cache=cache)
+
+@time SketchyCGAL.reconstruct(soln.Ω, soln.ST; correction=true)
+
+soln.log.obj_val_Xhat[1:10:end] * 1/scale_C * 1/scale_X
 
 ##
 norm(diag(Xhat) - b) / (1 + norm(b))
