@@ -5,9 +5,9 @@ end
 
 # cache should have length R
 function rank_one_update!(S, Ω, v, η; cache=nothing)
-    S .-= η .* S
+    S .= (1 - η) .* S
     if isnothing(cache)
-        tmp = v'*Ω
+        tmp = Ω'*v
         BLAS.ger!(η, v, tmp, S)
     else
         mul!(cache, Ω', v)
@@ -21,7 +21,7 @@ end
 function reconstruct(Ω, S)
     n = size(S, 1)
     σ = sqrt(n)*eps()*norm(S)
-    S .+= σ.*Ω
+    Sσ = S + σ .* Ω
     M = Ω'*S
     M .= 0.5 .* (M .+ M')
     F = cholesky(M)
