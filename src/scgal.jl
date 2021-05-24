@@ -12,8 +12,9 @@ function scgal_full(
         max_iters = 1_000,
         tol = 1e-10,
         print_iter = 10,
-        logging=false,
-        rseed=0
+        logging=false,              # stores obj_val, dual_gap, infeas
+        logging_primal=false,       # computes Xhat & stores true obj, infeas
+        rseed=0,
 )
     Random.seed!(0)
 
@@ -29,21 +30,15 @@ function scgal_full(
     β0 = 1
     K = Inf
 
-    if logging
-        dual_gap_log = zeros(max_iters)
-        obj_val_log = zeros(max_iters)
-        primal_infeas_log = zeros(max_iters)
-        time_sec_log = zeros(max_iters)
-    else
-        dual_gap = Inf
-        primal_infeas = Inf
-        obj_val = 0
-    end
-
+    # --- init sketch, primal state (z), dual, values ---
     Ω, St = init_sketch(n, R)
     yt = zeros(d)
     zt = zeros(d)
+    dual_gap = Inf
+    primal_infeas = Inf
+    obj_val = 0
 
+    # --- cache & other memory allocations ---
     qmax = min(n-1, Int(ceil(max_iters^0.25 * log(n))))
     cache = (
         A_X = zeros(d),
@@ -54,10 +49,32 @@ function scgal_full(
     )
     Dt = copy(C)
     v = zeros(n)
+    if logging_primal
+        log_cache = zeros(n, R)
+    end
 
-    # Keep track of things (credit: https://github.com/ZIB-IOL/FrankWolfe.jl)
+    # --- logging ---
+    if logging
+        dual_gap_log = zeros(max_iters)
+        obj_val_log = zeros(max_iters)
+        primal_infeas_log = zeros(max_iters)
+        time_sec_log = zeros(max_iters)
+    end
+    # These require a (pseudo)reconstruction of the sketch
+    if logging_primal
+        obj_val_Xhat_log = zeros(max_iters)
+        primal_infeas_Xhat_log = zeros(max_iters)
+    end
+
+    # --- Keep track of things ---
+    # (credit: https://github.com/ZIB-IOL/FrankWolfe.jl)
     headers = ["Iteration", "Primal", "Dual Gap", "Infeas", "Time"]
     print_header(headers)
+
+
+    # --------------------------------------------------------------------------
+    # --------------------- ITERATIONS -----------------------------------------
+    # --------------------------------------------------------------------------
     time_start = time_ns()
     while t <= max_iters #&& dual_gap >= max(tol, eps())
         # --- Parameter updates (from Yurtsever et al Alg 6.1) ---
@@ -90,7 +107,7 @@ function scgal_full(
         # --- "Primal" update ---
         zt .-= η.*zt
         # TODO: use primative (3)
-        # NOTE: This only works for MAXCUT
+        #   NOTE: This only works for MAXCUT as implemented (sorry -- was lazy)
         zt .+= η .* v .* v
 
 
@@ -126,6 +143,11 @@ function scgal_full(
             primal_infeas_log[t] = primal_infeas
             time_sec_log[t] = time_sec
         end
+        if logging_primal && t > 15
+            U, Λ = reconstruct(Ω, St, correction=true)
+            obj_val_Xhat_log[t] = compute_objective(C, U, Λ; cache=log_cache)
+            primal_infeas_Xhat_log[t] = compute_primal_infeas_mc(U, Λ; cache=log_cache)
+        end
 
 
         # --- printing ---
@@ -138,6 +160,7 @@ function scgal_full(
                 time_sec
             ))
         end
+
         t += 1
     end
     print_footer()
@@ -147,9 +170,29 @@ function scgal_full(
     # Reconstruct Xhat = U*Λ*U'
     U, Λ = reconstruct(Ω, St, correction=true)
 
-    # TODO: return a soution object
-    # primal var (U, Λ), dual var, AX
-    scgal_log = logging ? SCGALLog() : nothing
+    # Constructs log & returns solution object
+    if logging && logging_primal
+        scgal_log = SCGALLog(
+            dual_gap_log,
+            obj_val_log,
+            primal_infeas_log,
+            time_sec_log,
+            obj_val_Xhat_log,
+            primal_infeas_Xhat_log
+        )
+    elseif logging
+        scgal_log = SCGALLog(
+            dual_gap_log,
+            obj_val_log,
+            primal_infeas_log,
+            time_sec_log,
+            nothing,
+            nothing
+        )
+    else
+        scgal_log = nothing
+    end
+
     return SCGALSolution(U, Λ, St, Ω, yt, zt, scgal_log)
 
 end
