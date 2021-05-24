@@ -7,9 +7,13 @@ using ArnoldiMethod
 using Random
 using Printf
 
-
+include("utils.jl")
 include("types.jl")
+include("sketch.jl")
 include("eig.jl")
 include("cgal.jl")
+include("scgal.jl")
+
+export scgal_full
 
 end
