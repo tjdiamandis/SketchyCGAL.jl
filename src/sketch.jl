@@ -16,6 +16,7 @@ function rank_one_update!(S, Ω, v, η; cache=nothing)
 end
 
 
+# TODO: maybe should make this unallocating for experiments?
 # Numerical stable version of eq (5.3)
 #  X̂ = S*pinv(Ω'*S)*S' = U*Λ*U'
 function reconstruct(Ω, S; correction=false)
@@ -46,6 +47,7 @@ end
 
 
 # Avoids overhead of constructing Xhat fully
+# cache is a n x R matrix
 function compute_objective(C, U, Λ; cache=nothing)
     n = size(C, 1)
     if isnothing(cache)
@@ -60,4 +62,23 @@ function compute_objective(C, U, Λ; cache=nothing)
     end
 
     return obj_val
+end
+
+
+# Avoids overhead of constructing Xhat fully
+# cache is a n x R matrix
+function compute_primal_infeas_mc(U, Λ; cache=nothing)
+    n, R = size(U)
+    if isnothing(cache)
+        cache = U*Λ
+    else
+        mul!(cache, U, Λ)
+    end
+
+    infeas_val = 0
+    @views for i in 1:n
+        infeas_val += (dot(cache[i,:], U[i,:]) - 1/n)^2
+    end
+    infeas_val = sqrt(infeas_val)
+    return infeas_val / (1 + sqrt(1/n))
 end
