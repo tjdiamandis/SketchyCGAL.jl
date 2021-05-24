@@ -1,1 +1,3 @@
 Gset data can be found at http://web.stanford.edu/~yyye/yyye/Gset/
+Targets here https://medium.com/toshiba-sbm/benchmarking-the-max-cut-problem-on-the-simulated-bifurcation-machine-e26e1127c0b0
+- taken from previous research
