@@ -1,5 +1,5 @@
 function init_sketch(n, R; rseed=0)
-    Random.seed!(rseed)
+    # Random.seed!(rseed)
     return randn(n, R), zeros(n, R)
 end
 
@@ -34,7 +34,7 @@ function reconstruct(Ω, S; correction=false)
         F = cholesky(M)
     catch e
         !isa(e, PosDefException) && error("Sketch reconstruction error")
-        M[diagind(M)] .+= 1
+        M[diagind(M)] .+= minimum(eigvals(M)) .+ σ
         F = cholesky(M)
     end
     U, Σ, _ = svd(Sσ / F.U)
@@ -92,4 +92,14 @@ function compute_primal_infeas_mc(U, Λ; cache=nothing)
     end
     infeas_val = sqrt(infeas_val)
     return infeas_val / (1 + sqrt(1/n))
+end
+
+
+# MAXCUT objective with GW randomized rounding
+# C = -0.25*(Diagonal(G*ones(n)) - G)
+function max_cut_val(C, U, Λ)
+    n, R = size(U)
+    hp = randn(R)
+    x = U*sqrt.(Λ)
+    return -dot(x, C*x)
 end
