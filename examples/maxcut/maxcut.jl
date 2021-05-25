@@ -1,14 +1,14 @@
-using JuMP, MosekTools
+using JuMP, MosekTools, COSMO
 using SketchyCGAL
 using LinearAlgebra, SparseArrays
 
 include("utils.jl")
 
-G = graph_from_file(joinpath(@__DIR__, "data/G1"))
+G = graph_from_file(joinpath(@__DIR__, "data/gset/G1"))
 n = size(G, 1)
 
-function solve_with_jump(C)
-    sdp = Model(Mosek.Optimizer)
+function solve_with_jump(C; optimizer=Mosek.Optimizer)
+    sdp = Model(optimizer)
     @variable(sdp, X[1:n, 1:n] in PSDCone())
     @constraint(sdp, diag(X) .== 1)
     @objective(sdp, Min, sum(C.*X))
@@ -17,6 +17,52 @@ function solve_with_jump(C)
     # Xopt[diagind(X)] .= ones(n)
     return Xopt
 end
+
+function build_affine_exp(C, y)
+    n = size(C, 1)
+    aff_exp = spzeros(GenericAffExpr{Float64, VariableRef}, n, n)
+
+    # This is a bit of a hack
+    for (j, k, v) ∈ zip(findnz(C)...)
+        aff_exp[j,k] = 1
+    end
+
+    for i in 1:n
+        add_to_expression!(aff_exp[i,i], -y[i])
+    end
+    for (j, k, v) ∈ zip(findnz(C)...)
+        add_to_expression!(aff_exp[j,k], C[j,k])
+    end
+
+    # hack part 2
+    for (j, k, v) ∈ zip(findnz(C)...)
+        aff_exp[j,k] -= 1
+    end
+
+    return aff_exp
+end
+
+function solve_dual_with_jump(C; optimizer=Mosek.Optimizer)
+    sdp = Model(optimizer)
+    @variable(sdp, y[1:n])
+    @objective(sdp, Max, sum(y))
+    A = Symmetric(build_affine_exp(C, y))
+    psd_constraint = @constraint(sdp, A in PSDCone())
+    optimize!(sdp)
+    Xopt = value.(dual(psd_constraint))
+    return Xopt
+end
+
+# sdp = Model(with_optimizer(
+#     COSMO.Optimizer,
+#     decompose = true,
+#     merge_strategy = COSMO.CliqueGraphMerge
+# ))
+# @variable(sdp, y[1:n])
+# @objective(sdp, Max, sum(y))
+# A = Symmetric(build_affine_exp(C, y))
+# psd_constraint = @constraint(sdp, A in PSDCone())
+# optimize!(sdp)
 
 
 
@@ -75,7 +121,18 @@ end
 
 ## Solve JuMP
 Xopt = solve_with_jump(C)
+Xopt = solve_dual_with_jump(C;
+    optimizer=with_optimizer(
+        COSMO.Optimizer,
+        decompose = true,
+        merge_strategy = COSMO.CliqueGraphMerge
+))
+
 sum(C .* Xopt)
+
+# Save
+using BSON
+BSON.bson("G67_Xopt", Dict("Xopt" => Xopt))
 
 ## Solve CGAL
 @time XT, yT = SketchyCGAL.cgal_full(
@@ -89,8 +146,8 @@ sum(C .* XT * 1/scale_X)
 ##
 R = 20
 ηt(t) = 2.0/(t + 1.0)
-δt(t) = 0.5
-@time soln = scgal_full(
+δt(t) = 1.0
+tt = @timed scgal_full(
     C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
     max_iters=1_000,
     print_iter=100,
@@ -101,6 +158,11 @@ R = 20
     δt=δt
 )
 
+soln = tt.value
+trial_time = tt.time
+trial_alloc = tt.bytes/1e6 #(MB)
+
+##
 Xhat = SketchyCGAL.construct_Xhat(soln)
 # Xhat = S*pinv(Ω'*S)*S'
 sum(C .* Xhat) * 1/scale_X
