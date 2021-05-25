@@ -4,3 +4,4 @@
 .DS_Store
 /dev/
 /examples/maxcut/data/gset
+/examples/maxcut/output
