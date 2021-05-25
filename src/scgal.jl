@@ -7,8 +7,8 @@ function scgal_full(
         n,
         d,
         R = 30,
-        scale_X = 1,
-        scale_C = 1,
+        scale_X = 1.0,
+        scale_C = 1.0,
         max_iters = 1_000,
         tol = 1e-10,
         print_iter = 10,
@@ -93,7 +93,7 @@ function scgal_full(
         # C entries are already in Dt -- just update diagonal
         # NOTE: This only works for MAXCUT as implemented
         for i in 1:n
-            Dt[i,i] = (1.0 - δ)*Dt[i,i] + δ*(C[i,i] + cache.A_X[i])
+            @views Dt[i,i] = (1.0 - δ)*Dt[i,i] + δ*(C[i,i] + cache.A_X[i])
         end
 
 
@@ -211,6 +211,7 @@ end
 # ------------------------------------------------------------------------
 # ------------------------------------------------------------------------
 # Uses primatives defined in (2.4) in the paper
+#=
 function scgal(
         C_u!,           # u     -> C*u
         Aadj_zu!,       # (u,z) -> A_adj(z)*u
@@ -340,3 +341,4 @@ function scgal(
     return U, Λ, yt, zt
 
 end
+=#
