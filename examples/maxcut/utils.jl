@@ -22,7 +22,7 @@ end
 
 
 # COSMO native solve
-function solve_with_COSMO(C)
+function solve_with_COSMO(C; settings = nothing)
     n = size(C, 1)
 
     sdp = COSMO.Model()
@@ -33,19 +33,21 @@ function solve_with_COSMO(C)
         M[COSMO.mat_to_svec_ind(i,i), i] = -1.0
     end
     constraints = [COSMO.Constraint(M, Cvec, COSMO.PsdConeTriangle)]
-    settings = COSMO.Settings(
-        verbose = true,
-        eps_abs = 1e-5,
-        eps_rel = 1e-5,
-        decompose = true,
-        merge_strategy = COSMO.CliqueGraphMerge,
-        max_iter = 1000,
-        # rho = 1e-5,
-        # alpha = 1.6,
-        kkt_solver = COSMO.QdldlKKTSolver,
-        # kkt_solver = with_options(COSMO.MKLPardisoKKTSolver, msg_level_on = true),
-        verbose_timing = true,
-    )
+    if isnothing(settings)
+        settings = COSMO.Settings(
+            verbose = true,
+            eps_abs = 1e-5,
+            eps_rel = 1e-5,
+            decompose = true,
+            merge_strategy = COSMO.CliqueGraphMerge,
+            max_iter = 1000,
+            # rho = 1e-5,
+            # alpha = 1.6,
+            kkt_solver = COSMO.QdldlKKTSolver,
+            # kkt_solver = with_options(COSMO.MKLPardisoKKTSolver, msg_level_on = true),
+            verbose_timing = true,
+        )
+    end
     BLAS.set_num_threads(1)
     COSMO.assemble!(
         sdp,
