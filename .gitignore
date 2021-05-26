@@ -4,4 +4,6 @@
 .DS_Store
 /dev/
 /examples/maxcut/data/gset
+examples/maxcut/data/dimacs10
 /examples/maxcut/output
+/examples/maxcut/figures
