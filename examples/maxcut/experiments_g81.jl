@@ -10,7 +10,7 @@ blas_threads = BLAS.get_num_threads()
 blas_threads = BLAS.set_num_threads(1)
 
 ## Data Load
-G = graph_from_file(joinpath(@__DIR__, "data/gset/G67"))
+G = graph_from_file(joinpath(@__DIR__, "data/gset/G72"))
 # n = size(G, 1)
 # C = -0.25*(Diagonal(G*ones(n)) - G)
 
@@ -160,11 +160,11 @@ function run_trials_R(G, Rs)
 end
 
 trial_data = run_trials_R(G, Rs)
-BSON.bson(joinpath(@__DIR__, "output/trials_R.bson"), trial_data)
+BSON.bson(joinpath(@__DIR__, "output/trials_R_G72.bson"), trial_data)
 
 
-## SCGAL trials for weight (fix R = 50)
-function run_trials_weights(G; R=10, max_iters=10_000, print_iter=1000, rseed=0)
+## SCGAL trials for weight (fix R = 10)
+function run_trials_weights(G; R=10, max_iters=10_000, print_iter=1000, rseed=0, δs=[])
     trial_data = Dict()
     C, b, A!, A_adj!, n, d, scale_X, scale_C = setup_maxcut_scgal(G)
 
@@ -188,81 +188,38 @@ function run_trials_weights(G; R=10, max_iters=10_000, print_iter=1000, rseed=0)
         R=R,
         logging=true,
         # logging_primal=true,
-        ηt=t->2.0/(t + 1.0),
+        ηt=t->2.0/(t + 2.0),
         δt=t->1.0t/(1.0t + 1),
         rseed=rseed
     )
     trial_data["sa"] = tt_sa
 
-    tt_ea = @timed scgal_full(
-        C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
-        max_iters=max_iters,
-        print_iter=print_iter,
-        R=R,
-        logging=true,
-        # logging_primal=true,
-        ηt=t->2.0/(t + 1.0),
-        δt=t->0.8,
-        rseed=rseed
-    )
-    trial_data["ea"] = tt_ea
-
-
-    tt_ea2 = @timed scgal_full(
-        C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
-        max_iters=max_iters,
-        print_iter=print_iter,
-        R=R,
-        logging=true,
-        # logging_primal=true,
-        ηt=t->2.0/(t + 1.0),
-        δt=t->0.5,
-        rseed=rseed
-    )
-    trial_data["ea2"] = tt_ea2
-
-    tt_ea2 = @timed scgal_full(
-        C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
-        max_iters=max_iters,
-        print_iter=print_iter,
-        R=R,
-        logging=true,
-        # logging_primal=true,
-        ηt=t->2.0/(t + 1.0),
-        δt=t->0.3,
-        rseed=rseed
-    )
-    trial_data["ea3"] = tt_ea2
-
-
-    tt_la = @timed scgal_full(
-        C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
-        max_iters=max_iters,
-        print_iter=print_iter,
-        R=R,
-        logging=true,
-        # logging_primal=true,
-        ηt=t->2.0/(t + 1.0),
-        δt=t->2.0/(t + 1.0),
-        rseed=rseed
-    )
-    trial_data["la"] = tt_la
-
-    tt_ua = @timed scgal_full(
-        C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
-        max_iters=max_iters,
-        print_iter=print_iter,
-        R=R,
-        logging=true,
-        # logging_primal=true,
-        ηt=t->2.0/(t + 1.0),
-        δt=t->1.0/t,
-        rseed=rseed
-    )
-    trial_data["ua"] = tt_ua
+    for δ in δs
+        tt_ea = @timed scgal_full(
+            C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
+            max_iters=max_iters,
+            print_iter=print_iter,
+            R=R,
+            logging=true,
+            # logging_primal=true,
+            ηt=t->2.0/(t + 3.0),
+            δt=t->δ,
+            rseed=rseed
+        )
+        trial_data["ea_$δ"] = tt_ea
+    end
 
     return trial_data
 end
 
-trial_data_weights = run_trials_weights(G; max_iters=10_000, print_iter=1_000, rseed=1)
-BSON.bson(joinpath(@__DIR__, "output/trials_weights_short.bson"), trial_data_weights)
+δs = [0.01, 0.05, 0.1, 0.3, 0.5, 0.8, 0.9, 0.95, 0.99]
+trial_data_weights = run_trials_weights(G; max_iters=10_000, print_iter=1_000, rseed=0, δs=δs)
+BSON.bson(joinpath(@__DIR__, "output/trials_weights_G72.bson"), trial_data_weights)
+
+
+# ##
+# function condition_check(δ, c0)
+#     return (1 - (1-δ)*(2+1)^2/2^2)*δ*c0^2
+# end
+#
+# condition_check.(δs, 4)

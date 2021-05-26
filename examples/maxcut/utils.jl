@@ -1,14 +1,25 @@
 using SparseArrays
 
 # Read GSET files
-function graph_from_file(filename)
+function graph_from_file(filename; dimacs=false)
     file_vec = readlines(filename)
-    n, m = parse.(Int, split(strip(file_vec[1]), ' '))
+    if !dimacs
+        n, m = parse.(Int, split(strip(file_vec[1]), ' '))
+    else
+        n, _, m = parse.(Int, split(strip(file_vec[1]), ' '))
+    end
 
     G = spzeros(Float64, n, n)
-    for line in 2:length(file_vec)
-        i, j, v = parse.(Int, split(strip(file_vec[line]), ' '))
-        G[i, j] = G[j, i] = v
+    if !dimacs
+        for line in 2:length(file_vec)
+            i, j, v = parse.(Int, split(strip(file_vec[line]), ' '))
+            G[i, j] = G[j, i] = v
+        end
+    else
+        for line in 2:length(file_vec)
+            i, j = parse.(Int, split(strip(file_vec[line]), ' '))
+            G[i, j] = G[j, i] = 1.0
+        end
     end
 
     return G
