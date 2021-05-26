@@ -19,4 +19,5 @@ struct SCGALLog{T<:Real} <: OptimizationLog
     time_sec::AbstractVector{T}
     obj_val_Xhat::Union{AbstractVector{T}, Nothing}
     primal_infeas_Xhat::Union{AbstractVector{T}, Nothing}
+    cut_value::Union{AbstractVector{T}, Nothing}
 end

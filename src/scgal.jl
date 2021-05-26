@@ -14,6 +14,7 @@ function scgal_full(
         print_iter = 10,
         logging=false,              # stores obj_val, dual_gap, infeas
         logging_primal=false,       # computes Xhat & stores true obj, infeas
+        compute_cut=false,          # computes the maxcut value
         rseed=0,
         ηt::Function=t->2.0/(t + 1.0),
         δt::Function=t->1.0,
@@ -66,6 +67,9 @@ function scgal_full(
     if logging_primal
         obj_val_Xhat_log = zeros(max_iters)
         primal_infeas_Xhat_log = zeros(max_iters)
+        if compute_cut
+            cut_value_log = zeros(max_iters)
+        end
     end
 
     # --- Keep track of things ---
@@ -125,6 +129,7 @@ function scgal_full(
         # eq (6.4)
         primal_infeas = norm(cache.dual_update)
         γ = min(β0, 4β0*sqrt(t+1)/(t+1)^2 / primal_infeas^2)
+        #TODO: get rid of scaling??
         primal_infeas /= (scale_X * (1 + norm_b))
         @. yt += γ*cache.dual_update
 
@@ -151,6 +156,9 @@ function scgal_full(
             U, Λ = reconstruct(Ω, St, correction=true)
             obj_val_Xhat_log[t] = compute_objective(C, U, Λ; cache=log_cache)
             primal_infeas_Xhat_log[t] = compute_primal_infeas_mc(U, Λ; cache=log_cache)
+            if compute_cut
+                cut_value_log[t] = max_cut_val(C, U, Λ)
+            end
         end
 
 
@@ -177,6 +185,9 @@ function scgal_full(
     print_footer()
 
     # Constructs log & returns solution object
+    if !compute_cut
+        cut_value_log = nothing
+    end
     if logging && logging_primal
         scgal_log = SCGALLog(
             dual_gap_log,
@@ -184,7 +195,8 @@ function scgal_full(
             primal_infeas_log,
             time_sec_log,
             obj_val_Xhat_log,
-            primal_infeas_Xhat_log
+            primal_infeas_Xhat_log,
+            cut_value_log
         )
     elseif logging
         scgal_log = SCGALLog(
@@ -192,6 +204,7 @@ function scgal_full(
             obj_val_log,
             primal_infeas_log,
             time_sec_log,
+            nothing,
             nothing,
             nothing
         )

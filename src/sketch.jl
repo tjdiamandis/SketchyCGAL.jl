@@ -100,6 +100,6 @@ end
 function max_cut_val(C, U, Λ)
     n, R = size(U)
     hp = randn(R)
-    x = U*sqrt.(Λ)
+    x = sign.(U*sqrt.(Λ)*hp)
     return -dot(x, C*x)
 end
