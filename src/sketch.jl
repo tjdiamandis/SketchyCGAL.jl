@@ -5,7 +5,8 @@ end
 
 
 # cache should have length R
-function rank_one_update!(S, Ω, v, η; cache=nothing)
+function rank_one_update!(S, Ω, v, η; cache::AbstractVector=nothing)
+    @assert length(cache) == size(S, 2)
     S .= (1 - η) .* S
     if isnothing(cache)
         tmp = Ω'*v
@@ -80,6 +81,7 @@ end
 # cache is a n x R matrix
 function compute_primal_infeas_mc(U, Λ; cache=nothing)
     n, R = size(U)
+    @assert size(cache) == size(U)
     if isnothing(cache)
         cache = U*Λ
     else
