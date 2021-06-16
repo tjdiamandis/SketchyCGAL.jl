@@ -1,10 +1,9 @@
 # No primatives
-function scgal_full(
+function scgal_full_mc(
         C_input,
         b_input,
         A!,
-        A_adj!,
-        A_uu!;
+        A_adj!;
         n,
         d,
         R = 30,
@@ -15,9 +14,10 @@ function scgal_full(
         print_iter = 10,
         logging=false,              # stores obj_val, dual_gap, infeas
         logging_primal=false,       # computes Xhat & stores true obj, infeas
+        compute_cut=false,          # computes the maxcut value
         rseed=0,
         ηt::Function=t->2.0/(t + 1.0),
-        # δt::Function=t->1.0,        # weighting function TODO
+        δt::Function=t->1.0,
 )
     Random.seed!(0)
 
@@ -45,7 +45,6 @@ function scgal_full(
     qmax = min(n-1, Int(ceil(max_iters^0.25 * log(n))))
     cache = (
         A_X = zeros(d),
-        primal_update = zeros(d),
         dual_update = zeros(d),
         sketch_update = zeros(R),
         evec=init_cache_evec(n, qmax),
@@ -95,9 +94,11 @@ function scgal_full(
         cache.A_X .= zt .- b
         cache.A_X .*= βt
         cache.A_X .+= yt
-        # TODO: this can be optimized to consider sparsity pattern
-        Dt .= C
-        A_adj!(Dt, cache.A_X)
+        # C entries are already in Dt -- just update diagonal
+        # NOTE: This only works for MAXCUT as implemented
+        for i in 1:n
+            @views Dt[i,i] = (1.0 - δ)*Dt[i,i] + δ*(C[i,i] + cache.A_X[i])
+        end
 
 
         # --- Eigenvector computation ---
@@ -113,8 +114,9 @@ function scgal_full(
 
         # --- "Primal" update ---
         zt .-= η.*zt
-        A_uu!(cache.primal_update, v)
-        zt .+= η .* cache.primal_update
+        # TODO: use primative (3)
+        #   NOTE: This only works for MAXCUT as implemented (sorry -- was lazy)
+        zt .+= η .* v .* v
 
 
         # --- Sketch update ---
@@ -153,8 +155,10 @@ function scgal_full(
         if logging_primal && t > 15
             U, Λ = reconstruct(Ω, St, correction=true)
             obj_val_Xhat_log[t] = compute_objective(C, U, Λ; cache=log_cache)
-            # TODO: update this to be general
-            primal_infeas_Xhat_log[t] = 0.0 #compute_primal_infeas_mc(U, Λ; cache=log_cache)
+            primal_infeas_Xhat_log[t] = compute_primal_infeas_mc(U, Λ; cache=log_cache)
+            if compute_cut
+                cut_value_log[t] = max_cut_val(C, U, Λ)
+            end
         end
 
 
@@ -181,6 +185,9 @@ function scgal_full(
     print_footer()
 
     # Constructs log & returns solution object
+    if !compute_cut
+        cut_value_log = nothing
+    end
     if logging && logging_primal
         scgal_log = SCGALLog(
             dual_gap_log,
@@ -189,7 +196,7 @@ function scgal_full(
             time_sec_log,
             obj_val_Xhat_log,
             primal_infeas_Xhat_log,
-            nothing                     # allows for additional terms
+            cut_value_log
         )
     elseif logging
         scgal_log = SCGALLog(
