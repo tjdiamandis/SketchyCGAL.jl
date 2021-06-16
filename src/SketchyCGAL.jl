@@ -13,6 +13,7 @@ include("sketch.jl")
 include("eig.jl")
 include("cgal.jl")
 include("scgal.jl")
+include("scgal-maxcut.jl")
 
 export scgal_full
 export construct_Xhat

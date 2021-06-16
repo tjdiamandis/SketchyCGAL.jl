@@ -87,7 +87,8 @@ function scgal_full(
         # --- Parameter updates (from Yurtsever et al Alg 6.1) ---
         βt = β0 * sqrt(t + 1)
         η = ηt(t)
-        δ = δt(t)
+        # TODO: add back in weight function
+        # δ = δt(t)
 
 
         # --- Gradient computation ---
