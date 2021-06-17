@@ -96,8 +96,10 @@ function scgal_full(
         cache.A_X .= zt .- b
         cache.A_X .*= βt
         cache.A_X .+= yt
-        # TODO: this can be optimized to consider sparsity pattern
-        Dt .= C
+        # TODO: this can be optimized to better exploit sparsity pattern
+        for col = 1 : size(Dt, 2), k = SparseArrays.getcolptr(Dt)[col]:(SparseArrays.getcolptr(Dt)[col]-1)
+            Dt[rowvals(Dt)[k], col] = C[rowvals(Dt)[k], col]
+        end
         A_adj!(Dt, cache.A_X)
 
 
