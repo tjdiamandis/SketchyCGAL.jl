@@ -97,9 +97,10 @@ function scgal_full(
         cache.A_X .*= βt
         cache.A_X .+= yt
         # TODO: this can be optimized to better exploit sparsity pattern
-        @views rvD = rowvals(Dt)
-        for col = 1 : size(Dt, 2), k = SparseArrays.getcolptr(Dt)[col]:(SparseArrays.getcolptr(Dt)[col+1]-1)
-            Dt[rvD[k], col] = C[rvD[k], col]
+        for col = 1:size(Dt, 2)
+            for k = SparseArrays.getcolptr(Dt)[col]:(SparseArrays.getcolptr(Dt)[col+1]-1)
+                @views Dt[rowvals(Dt)[k], col] = C[rowvals(Dt)[k], col]
+            end
         end
         A_adj!(Dt, cache.A_X)
 
@@ -116,9 +117,13 @@ function scgal_full(
 
 
         # --- "Primal" update ---
+        # H = min_H ⟨Dt, H⟩ s.t. H ⪰ 0, tr(H) ≦ α
+        # zt = (1 - η)*zt + η*H
         zt .-= η.*zt
-        A_uu!(cache.primal_update, v)
-        zt .+= η .* cache.primal_update
+        if ξ < 0.0
+            A_uu!(cache.primal_update, v)
+            zt .+= η .* cache.primal_update
+        end
 
 
         # --- Sketch update ---
