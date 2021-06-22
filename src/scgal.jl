@@ -132,13 +132,15 @@ function scgal_full(
 
 
         # --- Dual update (& primal infeasibility) ---
+        # yt = yt + γ(zt - b)
         cache.dual_update .= zt .- b
         # eq (6.4)
         primal_infeas = norm(cache.dual_update)
         γ = min(β0, 4β0*sqrt(t+1)/(t+1)^2 / primal_infeas^2)
-        #TODO: get rid of scaling??
-        primal_infeas /= (scale_X * (1 + norm_b))
         @. yt += γ*cache.dual_update
+        # This is the logged infeasibility value
+        # TODO: get rid of scaling??
+        primal_infeas /= (scale_X * (1 + norm_b))
 
 
         # --- compute objective values for output ---
