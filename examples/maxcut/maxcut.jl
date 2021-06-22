@@ -1,6 +1,7 @@
 using JuMP, MosekTools, COSMO
 using SketchyCGAL
 using LinearAlgebra, SparseArrays
+using BSON
 
 include("utils.jl")
 
@@ -81,7 +82,7 @@ b = ones(n)
 scale_C = 1 / norm(C)
 scale_X = 1 / n
 # b .= b .* scale_X
-const C_const = C * scale_C
+# const C_const = C * scale_C
 
 # Linear map
 # AX = diag(X)
@@ -96,10 +97,7 @@ end
 # Adjoint
 # A*z = Diagonal(z)
 function A_adj!(S::SparseMatrixCSC, z)
-    for (i, j, v) ∈ zip(findnz(S)...)
-        S[i,j] = 0.0
-    end
-    S[diagind(S)] .= z
+    S[diagind(S)] .+= z
     return nothing
  end
 
@@ -121,18 +119,17 @@ end
 
 ## Solve JuMP
 Xopt = solve_with_jump(C)
-Xopt = solve_dual_with_jump(C;
-    optimizer=with_optimizer(
-        COSMO.Optimizer,
-        decompose = true,
-        merge_strategy = COSMO.CliqueGraphMerge
-))
+# Xopt = solve_dual_with_jump(C;
+#     optimizer=with_optimizer(
+#         COSMO.Optimizer,
+#         decompose = true,
+#         merge_strategy = COSMO.CliqueGraphMerge
+# ))
 
 sum(C .* Xopt)
 
 # Save
-using BSON
-BSON.bson("G67_Xopt", Dict("Xopt" => Xopt))
+# BSON.bson("G67_Xopt", Dict("Xopt" => Xopt))
 
 ## Solve CGAL
 @time XT, yT = SketchyCGAL.cgal_full(
@@ -148,14 +145,14 @@ R = 20
 ηt(t) = 2.0/(t + 1.0)
 δt(t) = 1.0
 tt = @timed scgal_full(
-    C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
+    C, b, A!, A_adj!, A_uu!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
     max_iters=1_000,
     print_iter=100,
     R=R,
     # logging=true,
     # logging_primal=true,
     ηt=ηt,
-    δt=δt
+    # δt=δt
 )
 
 soln = tt.value
