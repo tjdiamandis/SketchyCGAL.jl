@@ -77,10 +77,7 @@ scale_X = 1 / n
 # Linear map
 # AX = diag(X)
 function A!(y, X)
-    n = size(X, 1)
-    for i in 1:n
-        y[i] = X[i,i]
-    end
+    @views y .= X[diagind(X)]
     return nothing
 end
 
