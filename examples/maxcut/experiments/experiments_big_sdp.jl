@@ -2,8 +2,8 @@ using SketchyCGAL
 using LinearAlgebra, SparseArrays
 using BSON
 
-include("utils.jl")
-G = graph_from_file(joinpath(@__DIR__, "data/dimacs10/luxembourg_osm"); dimacs=true)
+include("../utils.jl")
+G = graph_from_file(joinpath(dirname(@__DIR__), "data/dimacs10/luxembourg_osm"); dimacs=true)
 
 # Run experiments single threaded
 blas_threads = BLAS.set_num_threads(1)

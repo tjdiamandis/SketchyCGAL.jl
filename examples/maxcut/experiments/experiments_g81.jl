@@ -3,14 +3,14 @@ using SketchyCGAL
 using LinearAlgebra, SparseArrays
 using BSON
 
-include("utils.jl")
+include("../utils.jl")
 
 blas_threads = BLAS.get_num_threads()
 # Run experiments single threaded
 blas_threads = BLAS.set_num_threads(1)
 
 ## Data Load
-G = graph_from_file(joinpath(@__DIR__, "data/gset/G72"))
+G = graph_from_file(joinpath(dirname(@__DIR__), "data/gset/G72"))
 # n = size(G, 1)
 # C = -0.25*(Diagonal(G*ones(n)) - G)
 

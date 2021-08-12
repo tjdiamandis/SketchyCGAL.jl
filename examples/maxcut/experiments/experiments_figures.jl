@@ -3,7 +3,7 @@ using LinearAlgebra, SparseArrays
 using BSON
 using Plots
 
-include("utils.jl")
+include("../utils.jl")
 
 ## Timing Figure
 #load data
@@ -99,7 +99,7 @@ savefig(size_plt_storage_vert, joinpath(@__DIR__, "figures/size_storage_vert"))
 
 
 ## Setup data
-G = graph_from_file(joinpath(@__DIR__, "data/gset/G72"))
+G = graph_from_file(joinpath(dirname(@__DIR__), "data/gset/G72"))
 n = size(G, 1)
 C = -0.25*(Diagonal(G*ones(n)) - G)
 b = ones(n)

@@ -5,6 +5,6 @@
 /dev/
 /examples/maxcut/data/gset
 examples/maxcut/data/dimacs10
-/examples/maxcut/output
-/examples/maxcut/figures
+/examples/maxcut/experiments/output
+/examples/maxcut/experiments/figures
 Manifest.toml

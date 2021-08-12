@@ -4,7 +4,7 @@ using LinearAlgebra, SparseArrays
 using BSON
 using Printf
 
-include("utils.jl")
+include("../utils.jl")
 
 # Run experiments single threaded
 blas_threads = BLAS.set_num_threads(1)
@@ -92,11 +92,11 @@ function maxcut_scgal(G, filename, trial_data; R=10)
 end
 
 function run_trials_size()
-    filenames = readdir(joinpath(@__DIR__, "data/gset"))
+    filenames = readdir(joinpath(dirname(@__DIR__), "data/gset"))
     trial_data = Dict()
 
     for filename in filenames
-        G = graph_from_file(joinpath(@__DIR__, "data/gset/$filename"))
+        G = graph_from_file(joinpath(dirname(@__DIR__), "data/gset/$filename"))
         @printf("On %3s: %8s %12s\n", filename, size(G,1), nnz(G))
         maxcut_scgal(G, filename, trial_data)
     end
