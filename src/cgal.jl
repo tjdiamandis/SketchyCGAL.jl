@@ -27,9 +27,12 @@ function cgal_full(
     Xt = zeros(n, n)
     yt = zeros(d)
 
+    # --- cache & other memory allocations ---
+    qmax = min(n-1, Int(ceil(max_iters^0.25 * log(n))))
     cache = (
         A_X = zeros(d),
-        dual_update = zeros(d)
+        dual_update = zeros(d),
+        evec = init_cache_evec(n, qmax),
     )
     Dt = copy(C)
     v = zeros(n)
@@ -49,17 +52,18 @@ function cgal_full(
         cache.A_X .-= b
         cache.A_X .*= βt
         cache.A_X .+= yt
-        # C entries are already in Dt -- just update diagonal
-        for i in 1:n
-            Dt[i,i] = C[i,i] + cache.A_X[i]
+        for col = 1:size(Dt, 2)
+            for k = SparseArrays.getcolptr(Dt)[col]:(SparseArrays.getcolptr(Dt)[col+1]-1)
+                @views Dt[rowvals(Dt)[k], col] = C[rowvals(Dt)[k], col]
+            end
         end
-        # * Allocating (testing convergence) *
-        # Dt = C + Diagonal(yt + βt*(diag(Xt) - b))
+        A_adj!(Dt, cache.A_X)
+        # Dt = C + A*(yt + βt*(diag(Xt) - b))
 
         # --- Eigenvector computation ---
         # * Custom Method *
-        q = Int(ceil(10 * t^0.25 * log(n)))
-        ξ, v = approx_min_evec(Dt, n=n, q=q)
+        q = Int(ceil(t^0.25 * log(n)))
+        ξ = approx_min_evec!(v, Dt, n=n, q=q, cache=cache.evec)
         # * ArnoldiMethod.jl (more stable than Lanzcos) *
         # F = partialschur(Dt, nev=1, which=SR(), tol=sqrt(n)*eps())
         # !F[2].converged && error("Eigvec computation did not converge")
@@ -72,19 +76,13 @@ function cgal_full(
 
 
         # --- Primal update ---
-        # This allocates for some reason...
         Xt .= Xt .- η.*Xt
+        # TODO: Call directly to avoid allocation
         BLAS.ger!(η, v, v, Xt)
-        # So does this...
-        # for i in 1:n, j in 1:n
-            # Xt[i,j] = (1-η) * Xt[i,j] + η*v[i]*v[j]
-        # end
-        # Xt .= (1-η).*Xt .+ η.*α.*(v*v')
 
         # --- Dual update ---
         A!(cache.A_X, Xt)
         cache.dual_update .= cache.A_X .- b
-        # cache.dual_update .= diag(Xt) - b
         primal_infeas = norm(cache.dual_update) * 1/scale_X / (1 + norm_b)
         γ = min(β0, 4*α^2*βt*η^2 / primal_infeas^2)
         @. yt += γ*cache.dual_update
