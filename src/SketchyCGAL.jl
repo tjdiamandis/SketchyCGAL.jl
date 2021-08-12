@@ -3,7 +3,7 @@ module SketchyCGAL
 using LinearAlgebra
 using SparseArrays
 # using Arpack
-using ArnoldiMethod
+# using ArnoldiMethod
 using Random
 using Printf
 

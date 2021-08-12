@@ -17,6 +17,7 @@ function approx_min_evec!(v::Vector{T}, M::AbstractMatrix; n::Int, q::Int, cache
     end
 
     #initialize
+    #QUESTION: Should this be warm started?
     @views randn!(cache.V[:,1])
     @views cache.V[:,1] .= cache.V[:,1] ./ norm(cache.V[:,1])
 
