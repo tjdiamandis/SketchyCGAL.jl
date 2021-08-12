@@ -15,6 +15,7 @@ function scgal_full(
         print_iter = 10,
         logging=false,              # stores obj_val, dual_gap, infeas
         logging_primal=false,       # computes Xhat & stores true obj, infeas
+        compute_cut=false,
         rseed=0,
         ηt::Function=t->2.0/(t + 1.0),
         # δt::Function=t->1.0,        # weighting function TODO
