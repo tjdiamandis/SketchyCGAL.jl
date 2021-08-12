@@ -15,10 +15,13 @@ function solve_with_jump(C; optimizer=Mosek.Optimizer)
     @objective(sdp, Min, sum(C.*X))
     optimize!(sdp)
     Xopt = value.(X)
+
+    # Optionally, we can apply a correction to enforce feasibility
     # Xopt[diagind(X)] .= ones(n)
     return Xopt
 end
 
+# Builds the LMI of the dual problem
 function build_affine_exp(C, y)
     n = size(C, 1)
     aff_exp = spzeros(GenericAffExpr{Float64, VariableRef}, n, n)
@@ -54,17 +57,6 @@ function solve_dual_with_jump(C; optimizer=Mosek.Optimizer)
     return Xopt
 end
 
-# sdp = Model(with_optimizer(
-#     COSMO.Optimizer,
-#     decompose = true,
-#     merge_strategy = COSMO.CliqueGraphMerge
-# ))
-# @variable(sdp, y[1:n])
-# @objective(sdp, Max, sum(y))
-# A = Symmetric(build_affine_exp(C, y))
-# psd_constraint = @constraint(sdp, A in PSDCone())
-# optimize!(sdp)
-
 
 
 ## ---------- Problem setup ----------
@@ -81,8 +73,6 @@ b = ones(n)
 # Scaling variables -- so trace is bounded by 1
 scale_C = 1 / norm(C)
 scale_X = 1 / n
-# b .= b .* scale_X
-# const C_const = C * scale_C
 
 # Linear map
 # AX = diag(X)
@@ -97,7 +87,7 @@ end
 # Adjoint
 # A*z = Diagonal(z)
 function A_adj!(S::SparseMatrixCSC, z)
-    S[diagind(S)] .+= z
+    @views S[diagind(S)] .+= z
     return nothing
  end
 
@@ -117,8 +107,12 @@ function A_uu!(z, u)
 end
 
 
-## Solve JuMP
+
+## Solve with JuMP + COSMO
 Xopt = solve_with_jump(C)
+
+# We can also try the dual version of the problem + chordal decomposition,
+#   but in this case, this approach seems much slower
 # Xopt = solve_dual_with_jump(C;
 #     optimizer=with_optimizer(
 #         COSMO.Optimizer,
@@ -126,21 +120,23 @@ Xopt = solve_with_jump(C)
 #         merge_strategy = COSMO.CliqueGraphMerge
 # ))
 
-sum(C .* Xopt)
-
-# Save
+# Uncomment the line below to save the optimal soln
 # BSON.bson("G67_Xopt", Dict("Xopt" => Xopt))
 
-## Solve CGAL
+pstar_jump = sum(C .* Xopt)
+@show pstar_jump
+
+## Solve with CGAL
 @time XT, yT = SketchyCGAL.cgal_full(
     C, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
-    max_iters=200,
+    max_iters=250,
     print_iter=25
 )
 
-sum(C .* XT * 1/scale_X)
+pstar_cgal = sum(C .* XT * 1/scale_X)
+@show pstar_cgal
 
-##
+## Solve with SketchyCGAL
 R = 20
 ηt(t) = 2.0/(t + 1.0)
 δt(t) = 1.0
@@ -159,45 +155,15 @@ soln = tt.value
 trial_time = tt.time
 trial_alloc = tt.bytes/1e6 #(MB)
 
-##
 Xhat = SketchyCGAL.construct_Xhat(soln)
-# Xhat = S*pinv(Ω'*S)*S'
-sum(C .* Xhat) * 1/scale_X
+pstar_scgal = sum(C .* Xhat) * 1/scale_X
+@show pstar_scgal
 
+## Compute true objective (MAXCUT after rounding scheme)
 cache = zeros(n, R)
-@time SketchyCGAL.compute_objective(C, soln.UT, soln.ΛT, cache=cache)# * 1/scale_X
+@time true_obj_scgal = SketchyCGAL.compute_objective(C, soln.UT, soln.ΛT, cache=cache)# * 1/scale_X
+@show true_obj_scgal
 
-@time SketchyCGAL.compute_primal_infeas_mc(soln.UT, soln.ΛT, cache=cache)
-
-@time SketchyCGAL.reconstruct(soln.Ω, soln.ST; correction=true)
-
-soln.log.obj_val_Xhat[1:10:end] * 1/scale_C * 1/scale_X
-
-##
-norm(diag(Xhat) - b) / (1 + norm(b))
-norm(zT*1/scale_X - b) / (1 + norm(b))
-
-
-## primatives
-@time XT, yT = cgal_dense(
-    C_u!, b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
-    max_iters=100,
-    print_iter=25
-)
-
-sum(C .* XT * 1/scale_X)
-
-
-##
-cgal_dense(
-    Matrix(C), b, A!, A_adj!; n=n, d=d, scale_X=scale_X, scale_C=scale_C,
-    max_iters=400,
-    print_iter=25
-)
-
-@time BLAS.ger!(η, v, v, Xt)
-
-@btime begin
-    Xt .-= η.*Xt
-end
-@time (@. Xt - η*Xt)
+## Compute primal infeasibility
+@time p_infeas_scgal = SketchyCGAL.compute_primal_infeas_mc(soln.UT, soln.ΛT, cache=cache)
+@show p_infeas_scgal
