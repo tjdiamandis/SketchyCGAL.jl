@@ -107,6 +107,15 @@ function A_adj!(S::SparseMatrixCSC, z)
 
 ```
 
+Additionally, we must define a function `A_uu!` that is the linear map applied to the rank one matrix `u*u^T`. (Note: This inferface may change in the future)
+
+```julia
+#u -> A(uu^T)
+function A_uu!(z, u)
+    z .= u.*u
+end
+```
+
 Finally, we can call SketchyCGAL (in this case, with no logging)
 ```julia
 soln = scgal_full(
